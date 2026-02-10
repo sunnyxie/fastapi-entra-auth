@@ -12,6 +12,11 @@ API_AUDIENCE = os.getenv("ENTRA_API_AUDIENCE", "api://5b206d5f-6ed8-4efc-a086-e4
 SWAGGER_CLIENT_ID = os.getenv("ENTRA_SWAGGER_CLIENT_ID", "0cb9864b-bf80-41b4-bd43-b24561716f75")  # secret val: GRh8Q~HlnWCbsc1AWPXgRLNQGZwcagNfrQYe-dgY
 ##  secret ID: 21ccf268-cb08-4727-8e2d-e7b4c869e5b4
 
+############ Windows CMD SET ENVIRONMENTS APP 'MY-FASTAPI-API ,Conda env -- fastapi
+# # set AZURE_CLIENT_ID=5b206d5f-6ed8-4efc-a086-e4900d2035fe
+# # set AZURE_TENANT_ID=c71e4220-4be6-4831-b856-9bf6af863fbd
+# # set AZURE_CLIENT_SECRET=f6a8Q~QssaXqRizqUgzWMSLMF4Drm6Ubk19LfdwT
+
 AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
 OIDC_CONFIG_URL = f"{AUTHORITY}/.well-known/openid-configuration"
 SCOPE_NAME = os.getenv("ENTRA_SCOPE_NAME", "access_as_user")  # scope you created under "Expose an API"
@@ -22,7 +27,7 @@ TOKEN_URL         = f"{AUTHORITY}/oauth2/v2.0/token"
 ISSUER            = f"{AUTHORITY}"  # for v2 tokens, issuer typically matches metadata; verify in your tokens
 JWKS_URI          = f"{AUTHORITY}/discovery/v2.0/keys"
 
-# Keep JWKS caching (keys rotate)
+# Keep JWKS caching (keys rotate)  JSON WEB KEY SET. 
 _jwks_cache : Dict[str, Any] = {"keys": None, "expires_at": 0}
 _oidc_cache : Dict[str, Any] = {}
 

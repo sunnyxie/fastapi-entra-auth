@@ -61,6 +61,14 @@ def now_utc() -> str:
 def list_items(user = Depends(get_current_user)):
     return list(DB.values())
 
+@app.get("/items/{item_id}", response_model=ItemOut, tags=["items"])
+def get_item(item_id: str = Path(..., description="Item ID"),
+    user = Depends(get_current_user),
+):
+    item = DB.get(item_id)
+    return item
+
+
 @app.post("/items", response_model=ItemOut, status_code=201, tags=["items"])
 def create_item(payload: ItemCreate, user = Depends(get_current_user)):
     item_id = str(uuid4())
@@ -106,4 +114,26 @@ def delete_item(
 def me(user = Depends(get_current_user)):
     return user
 
+@app.get('/secret')
+def get_secret():
+    MY_PASS = get_secret("ihs-bronze-secret")
+    print(f"Your secret value is: {MY_PASS}")
+    return 'you got the pass.'
 
+
+from azure.identity import DefaultAzureCredential
+from azure.keyvault.secrets import SecretClient
+VAULT_URL = 'https://key-vault-2026-test3.vault.azure.net/'
+def get_secret(secret_name):
+    try:
+            credential = DefaultAzureCredential()
+            
+            client = SecretClient(vault_url=VAULT_URL, credential=credential)
+
+            # 4. Retrieve the secret
+            retrieved_secret = client.get_secret(secret_name)
+            
+            return retrieved_secret.value
+    except Exception as e:
+        print(f"Failed to retrieve secret: {e}")
+        return None
