@@ -7,9 +7,10 @@ from fastapi import FastAPI, Depends, HTTPException, Path, status
 # 
 #  JWKS  json web key set, public URL that returns the public keys used to verify JWT signatures.
 # -----------------------------
-TENANT_ID = os.getenv("ENTRA_TENANT_ID")
-API_AUDIENCE = os.getenv("ENTRA_API_AUDIENCE")  # or the API app client_id
-SWAGGER_CLIENT_ID = os.getenv("ENTRA_SWAGGER_CLIENT_ID") 
+TENANT_ID = os.getenv("ENTRA_TENANT_ID", "c71e4220-4be6-4831-b856-9bf6af863fbd")
+API_AUDIENCE = os.getenv("ENTRA_API_AUDIENCE", "api://5b206d5f-6ed8-4efc-a086-e4900d2035fe")  # or the API app client_id
+SWAGGER_CLIENT_ID = os.getenv("ENTRA_SWAGGER_CLIENT_ID", "0cb9864b-bf80-41b4-bd43-b24561716f75") 
+
 
 AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
 OIDC_CONFIG_URL = f"{AUTHORITY}/.well-known/openid-configuration"
