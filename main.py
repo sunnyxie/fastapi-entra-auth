@@ -5,14 +5,12 @@ from typing import Dict, Any, Optional
 from datetime import datetime
 from azure_auth import SCOPES, SWAGGER_CLIENT_ID, oauth2_schema, validate_entra_jwt
 from jose.exceptions import JWTError
-# from http.client import HTTPException
 from fastapi import FastAPI, Depends, HTTPException, Path, status
 from uuid import uuid4
 from pydantic import Field, BaseModel
 
 
 def get_current_user(claims: Dict[str, Any] = Depends(lambda token=Depends(oauth2_schema) : validate_entra_jwt(token))):
-    # customize mapping as you like
     # ' preferred_username, upn oid, scp (delegated scopes)
     return {
         'oid': claims.get("oid"),

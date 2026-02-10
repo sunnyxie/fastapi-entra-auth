@@ -4,18 +4,13 @@ from typing import Dict, Any, Optional
 from jose.exceptions import JWTError
 from jose import jwt
 from fastapi import FastAPI, Depends, HTTPException, Path, status
-# Entra / Azure AD settings
+# 
 #  JWKS  json web key set, public URL that returns the public keys used to verify JWT signatures.
 # -----------------------------
 TENANT_ID = os.getenv("ENTRA_TENANT_ID", "c71e4220-4be6-4831-b856-9bf6af863fbd")
 API_AUDIENCE = os.getenv("ENTRA_API_AUDIENCE", "api://5b206d5f-6ed8-4efc-a086-e4900d2035fe")  # or the API app client_id
-SWAGGER_CLIENT_ID = os.getenv("ENTRA_SWAGGER_CLIENT_ID", "0cb9864b-bf80-41b4-bd43-b24561716f75")  # secret val: GRh8Q~HlnWCbsc1AWPXgRLNQGZwcagNfrQYe-dgY
-##  secret ID: 21ccf268-cb08-4727-8e2d-e7b4c869e5b4
+SWAGGER_CLIENT_ID = os.getenv("ENTRA_SWAGGER_CLIENT_ID", "0cb9864b-bf80-41b4-bd43-b24561716f75") 
 
-############ Windows CMD SET ENVIRONMENTS APP 'MY-FASTAPI-API ,Conda env -- fastapi
-# # set AZURE_CLIENT_ID=5b206d5f-6ed8-4efc-a086-e4900d2035fe
-# # set AZURE_TENANT_ID=c71e4220-4be6-4831-b856-9bf6af863fbd
-# # set AZURE_CLIENT_SECRET=f6a8Q~QssaXqRizqUgzWMSLMF4Drm6Ubk19LfdwT
 
 AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
 OIDC_CONFIG_URL = f"{AUTHORITY}/.well-known/openid-configuration"
