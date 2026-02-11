@@ -58,3 +58,5 @@ uvicorn[standard]
 gunicorn
 fastapi
 fastapi-cli
+azure-identity
+azure-keyvault-secrets  # Add this if you are using Key Vault
