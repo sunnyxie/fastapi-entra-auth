@@ -1,5 +1,3 @@
-
-import datetime
 from jose import jwt
 from typing import Dict, Any, Optional
 from datetime import datetime
@@ -125,7 +123,6 @@ VAULT_URL = 'https://key-vault-2026-test3.vault.azure.net/'
 def get_secret(secret_name):
     try:
             credential = DefaultAzureCredential()
-            
             client = SecretClient(vault_url=VAULT_URL, credential=credential)
 
             # 4. Retrieve the secret
