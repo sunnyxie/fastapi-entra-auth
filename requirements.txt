@@ -11,8 +11,6 @@ cryptography @ file:///D:/bld/cryptography-split_1769650180301/work
 dnspython @ file:///home/conda/feedstock_root/build_artifacts/dnspython_1733256735222/work
 ecdsa @ file:///home/conda/feedstock_root/build_artifacts/ecdsa_1741885129772/work
 email-validator @ file:///home/conda/feedstock_root/build_artifacts/email-validator-meta_1756221362582/work
-fastapi @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_fastapi-core_1766768870/work
-fastapi-cli @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_fastapi-cli_1766435117/work
 gmpy2 @ file:///D:/bld/gmpy2_1762946757103/work
 greenlet @ file:///C:/b/abs_bbl_18a2tm/croot/greenlet_1733860081977/work
 h11 @ file:///C:/b/abs_1czwoyexjf/croot/h11_1706652332846/work
@@ -54,9 +52,11 @@ typer-slim==0.21.1
 typing-inspection @ file:///home/conda/feedstock_root/build_artifacts/typing-inspection_1764158251755/work
 typing_extensions @ file:///C:/b/abs_0ffjxtihug/croot/typing_extensions_1734714875646/work
 urllib3 @ file:///home/conda/feedstock_root/build_artifacts/urllib3_1750271362675/work
-uvicorn @ file:///D:/bld/bld/rattler-build_uvicorn_1766332935/work
 watchfiles @ file:///D:/bld/watchfiles_1760456630893/work
 websockets @ file:///D:/bld/bld/rattler-build_websockets_1768087424/work/dist
 win_inet_pton @ file:///D:/bld/win_inet_pton_1733130564612/work
 zstandard==0.23.0
+uvicorn[standard]
 gunicorn
+fastapi @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_fastapi-core_1766768870/work
+fastapi-cli @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_fastapi-cli_1766435117/work

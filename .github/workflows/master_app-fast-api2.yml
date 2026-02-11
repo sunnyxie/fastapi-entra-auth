@@ -57,10 +57,14 @@ jobs:
         with:
           name: python-app
       
+      - name: List files for debugging
+        run: ls -R
+
       - name: 'Deploy to Azure Web App'
         uses: azure/webapps-deploy@v3
         id: deploy-to-webapp
         with:
           app-name: 'app-fast-api2'
-          slot-name: 'Production'
+          # slot-name: 'Production'
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_649CD8B98A2443DDB47E544B80EBE948 }}
+          package: .  # <--- This ensures it grabs the files downloaded from your artifact
