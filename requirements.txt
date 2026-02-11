@@ -59,3 +59,4 @@ watchfiles @ file:///D:/bld/watchfiles_1760456630893/work
 websockets @ file:///D:/bld/bld/rattler-build_websockets_1768087424/work/dist
 win_inet_pton @ file:///D:/bld/win_inet_pton_1733130564612/work
 zstandard==0.23.0
+gunicorn
