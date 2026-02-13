@@ -60,3 +60,7 @@ fastapi
 fastapi-cli
 azure-identity
 azure-keyvault-secrets  # Add this if you are using Key Vault
+finnhub-python  
+azure-ai-agents 
+azure-ai-projects 
+azure-ai-inference

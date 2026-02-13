@@ -64,24 +64,24 @@ def analyze_headlines(headlines):
         "Analyze the following NASDAQ headlines and assign an impact score from -10 to +10 based on its significance:\n\n"  
         "return the result strictly in JSON format: \n"
         "{\n"   
-        ' "impact_score" : ,\n'      
+        ' "impact_score" : ###,\n'      
         ' "one_line_reason" : ...,\n' 
-        ' "sentiment": ...,\n'    
+        ' "sentiment" : ...,\n'    
         "} \n"  
         "headlines: \n" 
         + text_formated 
     )  ## + "\n".join([ "\n".join( k + ': ' + v for k,v in headline.items() if k in ['headline', 'summary'] ) for headline in headlines])  
 
     print (prompt)
-    print(' * ' * 21)
 
     try:
         deployment_name = "gpt-5-chat" #"gpt-4o"
         response = chat_client.chat.completions.create(messages=[{"role": "user", "content": prompt}], 
                                 model=deployment_name,
                                 response_format="json")  
-        # print(response.output_text) 
+        print(' ** ' * 21)
+        print(' ## empty choices' if response.choices is None or response.choices == [] else response.choices[0].message)
         return json.loads(response.choices[0].message.content) 
     except Exception as e:
-        return {"error": 'google communication error: ' + str(e)}
+        return {"error": 'AI Foundry communication error: ' + str(e)}
     
