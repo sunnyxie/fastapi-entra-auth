@@ -1,4 +1,3 @@
-from jose import jwt
 from typing import Dict, Any, Optional
 from datetime import datetime
 from azure_auth import SCOPES, SWAGGER_CLIENT_ID, oauth2_schema, validate_entra_jwt
@@ -6,6 +5,7 @@ from jose.exceptions import JWTError
 from fastapi import FastAPI, Depends, HTTPException, Path, status
 from uuid import uuid4
 from pydantic import Field, BaseModel
+from finntech_news import analyze_headlines
 
 
 def get_current_user(claims: Dict[str, Any] = Depends(lambda token=Depends(oauth2_schema) : validate_entra_jwt(token))):
@@ -115,6 +115,12 @@ def get_secret():
     MY_PASS = get_secret("ihs-bronze-secret")
     print(f"Your secret value is: {MY_PASS}")
     return 'you got the pass.'
+
+@app.get('/tech')
+def get_tech_news():
+    from finntech_news import fetch_tech_news
+    
+    return analyze_headlines(fetch_tech_news('general'))
 
 
 from azure.identity import DefaultAzureCredential
