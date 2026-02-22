@@ -6,6 +6,7 @@ from fastapi import FastAPI, Depends, HTTPException, Path, status
 from uuid import uuid4
 from pydantic import Field, BaseModel
 from finntech_news import analyze_headlines
+from rag_client_app import fetch_top_headlines
 
 
 def get_current_user(claims: Dict[str, Any] = Depends(lambda token=Depends(oauth2_schema) : validate_entra_jwt(token))):
@@ -107,7 +108,10 @@ def delete_item(
     return None
 
 @app.get("/me", tags=["Auth"])
-def me(user = Depends(get_current_user)):
+async def me(user = Depends(get_current_user)):
+    news = await fetch_top_headlines('general')
+    # print(' $$$ ', news[:20])
+    print(' $$$ ', news[0].get("summary", "NO SUMMARY") if news else '')
     return user
 
 @app.get('/secret')
@@ -121,6 +125,11 @@ def get_tech_news():
     from finntech_news import fetch_tech_news
     
     return analyze_headlines(fetch_tech_news('general'))
+
+@app.get('/agent_analysis')
+def run_agent_analysis():
+    from finntech_news import run_agent_analysis
+    return run_agent_analysis()
 
 
 from azure.identity import DefaultAzureCredential
