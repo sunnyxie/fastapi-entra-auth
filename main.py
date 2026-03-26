@@ -1,3 +1,5 @@
+import html
+import json
 from typing import Dict, Any, Optional
 from datetime import datetime
 from azure_auth import SCOPES, SWAGGER_CLIENT_ID, oauth2_schema, validate_entra_jwt
@@ -6,7 +8,7 @@ from fastapi import FastAPI, Depends, HTTPException, Path, status
 from uuid import uuid4
 from pydantic import Field, BaseModel
 from finntech_news import analyze_headlines
-from rag_client_app import fetch_top_headlines
+from testing.fetch_news_w_aiohttp import fetch_top_headlines
 
 
 def get_current_user(claims: Dict[str, Any] = Depends(lambda token=Depends(oauth2_schema) : validate_entra_jwt(token))):
@@ -110,8 +112,8 @@ def delete_item(
 @app.get("/me", tags=["Auth"])
 async def me(user = Depends(get_current_user)):
     news = await fetch_top_headlines('general')
-    # print(' $$$ ', news[:20])
-    print(' $$$ ', news[0].get("summary", "NO SUMMARY") if news else '')
+    
+    print(news[0].get("summary", "NO SUMMARY") if news else '')
     return user
 
 @app.get('/secret')
@@ -129,7 +131,17 @@ def get_tech_news():
 @app.get('/agent_analysis')
 def run_agent_analysis():
     from finntech_news import run_agent_analysis
-    return run_agent_analysis()
+    raw_headlines = run_agent_analysis()
+    parsed_data = [json.loads(line) for line in raw_headlines if line.strip()]
+    return parsed_data
+
+@app.get('/company/{symbol}')
+def get_company_news(symbol: str):
+    from finntech_news import get_company_news
+    raw_news = get_company_news(symbol)
+    parsed_data = [html.unescape(line["summary"]) for line in raw_news if line.get("summary")]
+    return parsed_data   # unescape
+
 
 
 from azure.identity import DefaultAzureCredential

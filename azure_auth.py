@@ -4,12 +4,17 @@ from typing import Dict, Any, Optional
 from jose.exceptions import JWTError
 from jose import jwt
 from fastapi import FastAPI, Depends, HTTPException, Path, status
+from dotenv import load_dotenv
 # 
 #  JWKS  json web key set, public URL that returns the public keys used to verify JWT signatures.
 # -----------------------------
-TENANT_ID = os.getenv("ENTRA_TENANT_ID", "c71e4220-4be6-4831-b856-9bf6af863fbd")
-API_AUDIENCE = os.getenv("ENTRA_API_AUDIENCE", "api://5b206d5f-6ed8-4efc-a086-e4900d2035fe")  # my-fast-api registration
-SWAGGER_CLIENT_ID = os.getenv("ENTRA_SWAGGER_CLIENT_ID", "0cb9864b-bf80-41b4-bd43-b24561716f75") 
+
+# This looks for a .env file and loads the variables into os.environ
+load_dotenv()
+
+TENANT_ID = os.getenv("ENTRA_TENANT_ID", "")
+API_AUDIENCE = os.getenv("ENTRA_API_AUDIENCE", "")  # my-fast-api registration
+SWAGGER_CLIENT_ID = os.getenv("ENTRA_SWAGGER_CLIENT_ID", "") 
 
 
 AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
@@ -65,3 +70,5 @@ def validate_entra_jwt(token: str) -> Optional[Dict[str, Any]]:
         return claims
     except JWTError as e:
         raise HTTPException(status_code=401, detail=str(e), headers={"WWW-Authenticate": "Bearer"})
+    
+

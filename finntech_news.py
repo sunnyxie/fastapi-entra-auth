@@ -1,10 +1,18 @@
-
+from datetime import datetime, timedelta
+import sys
 import time
-import json
-from constants import HUB_API_KEY, MAX_NEWS_PER_REQUEST, TOP_HEADER_LINE_NUMBER
+from constants import MAX_NEWS_PER_REQUEST, TOP_HEADER_LINE_NUMBER, APT_5_ENDPOINT
+import os
 import finnhub
+from dotenv import load_dotenv
 
-## https://ai-foundry-yx-feb.services.ai.azure.com/api/projects/proj-ai-analysis
+# This looks for a .env file and loads the variables into os.environ
+load_dotenv()
+
+HUB_API_KEY=os.getenv("HUB_API_KEY")
+GEMINI_API_KEY=os.getenv("GEMINI_API_KEY")
+GPT_5_KEY=os.getenv("GPT_5_KEY")  # from Azure Foundry
+
 
 def fetch_finnhub_top_news(category: str = 'general'):
     """Fetch news articles for a given stock symbol from Finnhub API."""
@@ -25,6 +33,21 @@ def fetch_finnhub_top_news(category: str = 'general'):
         })
     return formatted_news
 
+def get_company_news(symbol: str, maximum_count: int = 4):
+    finnhub_client = finnhub.Client(api_key=HUB_API_KEY)
+    to_date = datetime.now().strftime('%Y-%m-%d')
+    from_date = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+
+    try:
+        news = finnhub_client.company_news(symbol, _from=from_date, to=to_date)
+        print(news[:1])
+        return news[:maximum_count]
+    except Exception as e:
+        print(f"Error fetching news for {symbol}: {e}")
+        return []
+
+from functools import lru_cache
+@lru_cache(maxsize=12)
 def fetch_tech_news(category: str = 'technology'):
     print(f"Fetching top {TOP_HEADER_LINE_NUMBER} news headlines for category: {category}" )
     headerlines = fetch_finnhub_top_news(category)
@@ -38,19 +61,10 @@ def fetch_tech_news(category: str = 'technology'):
 
 from azure.ai.projects import AIProjectClient
 from azure.identity import DefaultAzureCredential
-from azure.ai.projects.models import AgentDefinition, PromptAgentDefinition
-# from azure.ai.inference import ChatCompletionsClient    old not used any more
-agent_id = 'asst_ZFqqWBIigtdwGEPpox0mCeH2'  
-agent_name= 'Agent243' ## 'Agent3-openai'
-# Use DefaultAzureCredential if your app is authenticated via Managed Identity,  
-# or use an API key if available from the AI Foundry agent settings.  
-project_endpoint = f"https://{agent_name}.projects.azure.com/agents/{agent_id}"  
-## use new agent in EASTUS2, rg: rg-xiefang896-9622
-project_endpoint= 'https://xiefang896-foundry-agen-resource.services.ai.azure.com/api/projects/xiefang896-foundry-agents'
-project_client = AIProjectClient(
-    endpoint=project_endpoint,
-    credential=DefaultAzureCredential())
 
+agent_id = os.getenv("AZURE_EXISTING_AGENT_ID")
+# Use DefaultAzureCredential if your app is authenticated via Managed Identity,  
+project_endpoint = os.getenv("AZURE_EXISTING_AIPROJECT_ENDPOINT") # f"https://{agent_name}.projects.azure.com/agents/{agent_id}"
 
 def analyze_headlines(headlines):  
     text_formated = ''
@@ -61,43 +75,23 @@ def analyze_headlines(headlines):
             text_formated += headline['summary'] + '\n'
     
     prompt = (  
-        "Analyze the following NASDAQ headlines and assign an impact score from -10 to +10 based on its significance and impact on the stock market:\n\n"  
+        "Analyze the following Technology headlines and assign an impact score from -10 to +10 based on its significance and impact on the stock market:\n\n"  
         "if any headline's impact is less or equal to 0, then don't return it. \n"
         "return the headlines in descending order of impact score: \n"
-        "return the result strictly in JSON format: \n"
+        "give your brief reason on the key field 'one_line_reason' \n"
+        "return the result strictly in JSON format (remove parentheses for easy reading): \n"
         "{\n"   
-        ' "summary" : ...,\n'      
-        ' "impact_score" : ###,\n'      
-        ' "one_line_reason" : ...,\n' 
-        ' "sentiment" : ...,\n'    
+        ' summary : ...,\n'      
+        ' impact_score : ###,\n'      
+        ' one_line_reason : ...,\n' 
+        ' sentiment : ...,\n'    
         "} \n"  
         "headlines: \n" 
         + text_formated 
-    )  ## + "\n".join([ "\n".join( k + ': ' + v for k,v in headline.items() if k in ['headline', 'summary'] ) for headline in headlines])  
+    )  ##  
 
     return prompt
- #   print (prompt)
 
-# chat_client = project_client.get_openai_client()
-# project_client = AIProjectClient.from_connection_string(
-#     credential=DefaultAzureCredential(),
-#     conn_str=project_endpoint
-# )
-# agent_details = project_client.agents.get( agent_name='Agent3-openai')   not working
-# print(f'Agent details: {json.dumps(agent_details)}')
-
-
-######## Now switched to agentClient side.  resource : xiefang896-foundry-agents
-# LogSummaryAgent = None
-# try:
-#     LogSummaryAgent = project_client.agents.create(
-#         name=agent_name,
-#         definition=agent_definition,
-#         description="This agent helps me summarize my daily logs.",
-#         metadata={"department": "engineering"}
-#     )
-# except:
-# 2. Agents in Foundry are stateful. You need a 'Thread' for the conversation.
 # thread = LogSummaryAgent.threads.create()   not WORKING
 # 1. Create the thread using the client, NOT the agent object
 from azure.ai.agents import AgentsClient
@@ -111,7 +105,7 @@ def run_agent_analysis():
     )
 
     agent = agent_client.create_agent(
-        model='gpt-5-chat',
+        model='grok-4-1-fast-reasoning',
         name="agentClientNew",
         instructions="You are helpful financial adviser that make recommendations to individuals on investing, especially in tech sector",
     )
@@ -124,16 +118,20 @@ def run_agent_analysis():
 
     agent_client.delete_agent(agent_id=agent_id)
 
-    # 4. get the messages
+    # 3. get the messages
     messages = agent_client.messages.list(thread_id=thread.id, order=ListSortOrder.DESCENDING)
+    
+    agent_responses = []
     # we will iterate them and output only text contents.
     for data_point in messages:
         last_message_content = data_point.content[-1]
         if isinstance(last_message_content, MessageTextContent) and MessageRole.AGENT == data_point.role:
             print(f"{data_point.role}: {last_message_content.text.value}")
-            return last_message_content.text.value
+            agent_responses.append(last_message_content.text.value)
+            
+    return agent_responses
 
-
+# using agent thrading chatting
 def chat_in_thread(agent_client, agent_id, thread_id):
     message  = agent_client.messages.create(
         thread_id=thread_id,
@@ -150,7 +148,7 @@ def chat_in_thread(agent_client, agent_id, thread_id):
     run = agent_client.runs.create(
         thread_id=thread_id,
         agent_id=agent_id, 
-        model="gpt-5-chat",
+        model="grok-4-1-fast-reasoning",
     )
 
     while run.status != "completed":
@@ -168,6 +166,46 @@ def chat_in_thread(agent_client, agent_id, thread_id):
 
     return run
 
+def foundry_gpt5_analysis(system_prompt: str = None, user_prompt: str = None):
+    from openai import AzureOpenAI
 
+    endpoint = "https://foundry-subs1.cognitiveservices.azure.com/"
+    model_name = "gpt-5"
+    deployment = "gpt-5"
 
+    api_version = "2024-12-01-preview"
+
+    client = AzureOpenAI(
+        api_version=api_version,
+        azure_endpoint=endpoint,
+        api_key=GPT_5_KEY,
+    )
+
+    response = client.chat.completions.create(
+        messages=[
+            {
+                "role": "system",
+                "content": system_prompt
+            },
+            {
+                "role": "user",
+                "content": user_prompt # "I am going to Paris, which places should I see?",
+            }
+        ],
+        max_completion_tokens=120000,
+        model=deployment
+    )
+
+    print(response.choices[0].message.content)    
+    print(' ** ' * 30)
+
+if __name__ == "__main__":
+    _, args = sys.argv[0], sys.argv[1:]
+    
+    system_prompt = "Act as a Senior technology Analyst specializing in News Sentiment on the market. "
+    foundry_gpt5_analysis(system_prompt, analyze_headlines(fetch_tech_news('general')))
+
+    ### using agent analysis. 
+    raw_headlines = run_agent_analysis()
+ 
     

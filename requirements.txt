@@ -64,3 +64,4 @@ finnhub-python
 azure-ai-agents 
 azure-ai-projects 
 azure-ai-inference
+python-dotenv
