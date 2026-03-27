@@ -6,6 +6,8 @@ import os
 import finnhub
 from dotenv import load_dotenv
 
+from utils.generate_pdf import save_as_pdf
+
 # This looks for a .env file and loads the variables into os.environ
 load_dotenv()
 
@@ -86,7 +88,8 @@ def analyze_headlines(headlines):
         ' one_line_reason : ...,\n' 
         ' sentiment : ...,\n'    
         "} \n"  
-        "headlines: \n" 
+        "finally add a three to four sentences investing summary before the JSON array;\n"
+        "Headlines: \n" 
         + text_formated 
     )  ##  
 
@@ -119,17 +122,8 @@ def run_agent_analysis():
     agent_client.delete_agent(agent_id=agent_id)
 
     # 3. get the messages
-    messages = agent_client.messages.list(thread_id=thread.id, order=ListSortOrder.DESCENDING)
+    return agent_client.messages.list(thread_id=thread.id, order=ListSortOrder.DESCENDING)
     
-    agent_responses = []
-    # we will iterate them and output only text contents.
-    for data_point in messages:
-        last_message_content = data_point.content[-1]
-        if isinstance(last_message_content, MessageTextContent) and MessageRole.AGENT == data_point.role:
-            print(f"{data_point.role}: {last_message_content.text.value}")
-            agent_responses.append(last_message_content.text.value)
-            
-    return agent_responses
 
 # using agent thrading chatting
 def chat_in_thread(agent_client, agent_id, thread_id):
@@ -196,16 +190,30 @@ def foundry_gpt5_analysis(system_prompt: str = None, user_prompt: str = None):
         model=deployment
     )
 
-    print(response.choices[0].message.content)    
-    print(' ** ' * 30)
+    print(response.choices[0].message.content)   
+    return response.choices[0].message.content
+   
 
 if __name__ == "__main__":
     _, args = sys.argv[0], sys.argv[1:]
     
     system_prompt = "Act as a Senior technology Analyst specializing in News Sentiment on the market. "
-    foundry_gpt5_analysis(system_prompt, analyze_headlines(fetch_tech_news('general')))
+    analyzed_messages = foundry_gpt5_analysis(system_prompt, analyze_headlines(fetch_tech_news('general')))
 
-    ### using agent analysis. 
-    raw_headlines = run_agent_analysis()
+    save_as_pdf(analyzed_messages, "./Outputs/Headline_Reports.pdf")
+    print(' ** ' * 30)
+
+    ### using agent do thread analysis. 
+    responses = run_agent_analysis()
+
+    agent_responses = []
+    # we will iterate them and output only text contents.
+    for data_point in responses:
+        last_message_content = data_point.content[-1]
+        if isinstance(last_message_content, MessageTextContent) and MessageRole.AGENT == data_point.role:
+            print(f"{data_point.role}: {last_message_content.text.value}")
+            agent_responses.append(last_message_content.text.value)
+            
+    #return agent_responses
  
     
