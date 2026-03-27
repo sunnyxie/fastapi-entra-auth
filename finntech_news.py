@@ -157,7 +157,6 @@ def chat_in_thread(agent_client, agent_id, thread_id):
             print(f"Error message: {run.last_error.message}")
 
     print(f'run completed {run.status}')
-
     return run
 
 def foundry_gpt5_analysis(system_prompt: str = None, user_prompt: str = None):
@@ -183,7 +182,7 @@ def foundry_gpt5_analysis(system_prompt: str = None, user_prompt: str = None):
             },
             {
                 "role": "user",
-                "content": user_prompt # "I am going to Paris, which places should I see?",
+                "content": user_prompt 
             }
         ],
         max_completion_tokens=120000,
@@ -200,8 +199,8 @@ if __name__ == "__main__":
     system_prompt = "Act as a Senior technology Analyst specializing in News Sentiment on the market. "
     analyzed_messages = foundry_gpt5_analysis(system_prompt, analyze_headlines(fetch_tech_news('general')))
 
-    save_as_pdf(analyzed_messages, "./Outputs/Headline_Reports.pdf")
-    print(' ** ' * 30)
+    save_as_pdf(analyzed_messages, f"./Outputs/Headline_Reports_{time.strftime('%Y-%m-%d_%H-%M-%S')}.pdf")
+    print("First run ended", ' ** ' * 30)
 
     ### using agent do thread analysis. 
     responses = run_agent_analysis()
