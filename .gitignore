@@ -3,5 +3,7 @@ __pycache__/
 *.pyc
 .env
 .env.*
-.vscode/
+
 .idea/
+environment_setup/
+Outputs/

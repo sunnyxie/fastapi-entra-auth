@@ -1,12 +1,16 @@
 from datetime import datetime, timedelta
 import sys
 import time
+import asyncio
 from constants import MAX_NEWS_PER_REQUEST, TOP_HEADER_LINE_NUMBER, APT_5_ENDPOINT
 import os
 import finnhub
 from dotenv import load_dotenv
 
+from logging_info import get_logger
 from utils.generate_pdf import save_as_pdf
+
+logger = get_logger(__name__)
 
 # This looks for a .env file and loads the variables into os.environ
 load_dotenv()
@@ -16,52 +20,51 @@ GEMINI_API_KEY=os.getenv("GEMINI_API_KEY")
 GPT_5_KEY=os.getenv("GPT_5_KEY")  # from Azure Foundry
 
 
-def fetch_finnhub_top_news(category: str = 'general'):
+async def fetch_finnhub_top_news(category: str = 'general'):
     """Fetch news articles for a given stock symbol from Finnhub API."""
     if not HUB_API_KEY:
         return None
-    print('Fetching news from Finnhub...')
+    logger.info('Fetching news from Finnhub...')
     finnhub_client = finnhub.Client(api_key=HUB_API_KEY)
-    # You can also use 'merger', 'top news', etc.
-    news = finnhub_client.general_news(category, min_id=0)
+    # You can also use 'merger', 'top news' as category, etc.
+    try:
+        news = await asyncio.to_thread(finnhub_client.general_news, category, min_id=0)
+        # news =finnhub_client.general_news(category, min_id=0)
 
-    formatted_news = []
-    for item in news[:MAX_NEWS_PER_REQUEST]:
-        formatted_news.append({
-            "headline": item['headline'],
-            "summary": item['summary'],
-            "url": item['url'],
-            "source": item['source']
-        })
-    return formatted_news
+        formatted_news = []
+        for item in news[:MAX_NEWS_PER_REQUEST]:
+            formatted_news.append({
+                "headline": item['headline'],
+                "summary": item['summary'],
+                "url": item['url'],
+                "source": item['source']
+            })
+        return formatted_news
+    except Exception as e:
+        logger.error(f"Error fetching Finnhub news: {e}")
+        return None 
 
-def get_company_news(symbol: str, maximum_count: int = 4):
+
+async def get_company_news(symbol: str, maximum_count: int = 4):
     finnhub_client = finnhub.Client(api_key=HUB_API_KEY)
     to_date = datetime.now().strftime('%Y-%m-%d')
     from_date = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
 
     try:
-        news = finnhub_client.company_news(symbol, _from=from_date, to=to_date)
-        print(news[:1])
+        # finnhub-python is synchronous, wrap in thread to avoid blocking event loop
+        news = await asyncio.to_thread(finnhub_client.company_news, symbol, _from=from_date, to=to_date)
         return news[:maximum_count]
     except Exception as e:
-        print(f"Error fetching news for {symbol}: {e}")
+        logger.error(f"Error fetching news for {symbol}: {e}")
         return []
 
 from functools import lru_cache
-@lru_cache(maxsize=12)
-def fetch_tech_news(category: str = 'technology'):
-    print(f"Fetching top {TOP_HEADER_LINE_NUMBER} news headlines for category: {category}" )
-    headerlines = fetch_finnhub_top_news(category)
-
-    # for i, line in enumerate(headerlines, 1):
-    #     print(f"{i}. {line['headline']} - {line['source']}\n")
-    #     if i >= TOP_HEADER_LINE_NUMBER:
-    #         break
-    return headerlines
+@lru_cache(maxsize=2)
+async def fetch_tech_news(category: str = 'technology'):
+    logger.info(f"Fetching top {TOP_HEADER_LINE_NUMBER} news headlines for category: {category}" )
+    return await fetch_finnhub_top_news(category)
 
 
-from azure.ai.projects import AIProjectClient
 from azure.identity import DefaultAzureCredential
 
 agent_id = os.getenv("AZURE_EXISTING_AGENT_ID")
@@ -69,13 +72,14 @@ agent_id = os.getenv("AZURE_EXISTING_AGENT_ID")
 project_endpoint = os.getenv("AZURE_EXISTING_AIPROJECT_ENDPOINT") # f"https://{agent_name}.projects.azure.com/agents/{agent_id}"
 
 def analyze_headlines(headlines):  
-    text_formated = ''
+    lines = []
     for headline in headlines:
         if 'headline' in headline:
-            text_formated += headline['headline'] + ' ; '
+            lines.append(f"{headline['headline']} ; ")
         if 'summary' in headline:
-            text_formated += headline['summary'] + '\n'
-    
+            lines.append(f"{headline['summary']}\n")
+    text_formated = "".join(lines)
+
     prompt = (  
         "Analyze the following Technology headlines and assign an impact score from -10 to +10 based on its significance and impact on the stock market:\n\n"  
         "if any headline's impact is less or equal to 0, then don't return it. \n"
@@ -88,7 +92,7 @@ def analyze_headlines(headlines):
         ' one_line_reason : ...,\n' 
         ' sentiment : ...,\n'    
         "} \n"  
-        "finally add a three to four sentences investing summary before the JSON array;\n"
+        "finally add a three to four sentences of investing and sentiment summary before the JSON array;\n"
         "Headlines: \n" 
         + text_formated 
     )  ##  
@@ -97,74 +101,96 @@ def analyze_headlines(headlines):
 
 # thread = LogSummaryAgent.threads.create()   not WORKING
 # 1. Create the thread using the client, NOT the agent object
-from azure.ai.agents import AgentsClient
+from azure.ai.agents.aio import AgentsClient
 from azure.ai.agents.models import ListSortOrder, MessageRole, MessageTextContent
 
 # entry function to run to get the list of headlines that impact the market.
-def run_agent_analysis():
-    agent_client = AgentsClient(
+async def run_agent_analysis():
+    async with AgentsClient(
         endpoint=project_endpoint,
         credential=DefaultAzureCredential()
-    )
+    ) as agent_client:
 
-    agent = agent_client.create_agent(
-        model='grok-4-1-fast-reasoning',
-        name="agentClientNew",
-        instructions="You are helpful financial adviser that make recommendations to individuals on investing, especially in tech sector",
-    )
-    agent_id = agent.id
-    print(f'agent run created:  -- {agent.id}')
+        agent = await agent_client.create_agent(
+            model='grok-4-1-fast-reasoning',
+            name="agentClientNew",
+            instructions="You are helpful financial adviser that make recommendations to individuals on investing, especially in tech sector",
+        )
+        agent_id = agent.id
+        logger.info(f'agent run created:  -- {agent.id}')
 
-    thread = agent_client.threads.create()    
-    # 2. Add a message to that thread
-    chat_in_thread(agent_client, agent_id, thread.id)
+        thread = await agent_client.threads.create()    
+        # 2. Add a message to that thread
+        await chat_in_thread(agent_client, agent_id, thread.id)
 
-    agent_client.delete_agent(agent_id=agent_id)
+        await agent_client.delete_agent(agent_id=agent_id)
 
-    # 3. get the messages
-    return agent_client.messages.list(thread_id=thread.id, order=ListSortOrder.DESCENDING)
+        # 3. get the messages and extract text for the caller (FastAPI or Script)
+        # return agent_client.messages.list(thread_id=thread.id, order=ListSortOrder.ASCENDING)
+        
+        messages = []
+        async for msg in agent_client.messages.list(thread_id=thread.id, order=ListSortOrder.ASCENDING):
+            if msg.role == MessageRole.AGENT:
+                # for content in msg.content:
+                #     if isinstance(content, MessageTextContent):
+                messages.append(msg)
+        return messages
+        
+        # agent_texts = []
+        # for msg in messages.data:
+        #     if msg.role == MessageRole.AGENT:
+        #         for content in msg.content:
+        #             if isinstance(content, MessageTextContent):
+        #                 agent_texts.append(content.text.value)
+        # return agent_texts
     
 
 # using agent thrading chatting
-def chat_in_thread(agent_client, agent_id, thread_id):
-    message  = agent_client.messages.create(
+async def chat_in_thread(agent_client, agent_id, thread_id):
+    await agent_client.messages.create(
         thread_id=thread_id,
         role="user",
-        content="Can you help calculate Pow(3, 3)?"
+        content="Can you tell me the top 2 news or headlines in the Agentic AI World (be frontier, they might or might not impact the market)?"
     )
 
-    message2 = agent_client.messages.create(
+    await agent_client.messages.create(
         thread_id=thread_id,
         role="user",
-        content=analyze_headlines(fetch_tech_news('general'))
+        content="Just tell me a joke on technology or investing field."
     )
-    # 3. create run
-    run = agent_client.runs.create(
+
+    await agent_client.messages.create(
+        thread_id=thread_id,
+        role="user",
+        content=analyze_headlines(await fetch_tech_news('general'))
+    )
+    #  create the run
+    run = await agent_client.runs.create(
         thread_id=thread_id,
         agent_id=agent_id, 
         model="grok-4-1-fast-reasoning",
     )
 
     while run.status != "completed":
-        time.sleep(1)
-        run = agent_client.runs.get(
+        await asyncio.sleep(1)
+        run = await agent_client.runs.get(
             thread_id=thread_id,
             run_id=run.id
         )
-        print(f"Run status: {run.id} {run.status} agent: {agent_id}")
+        logger.info(f"Run status: {run.id} {run.status} agent: {agent_id}")
         if run.status.lower() == "failed":
-            print(f"Run failed! Error code: {run.last_error.code}")
-            print(f"Error message: {run.last_error.message}")
+            logger.error(f"Run failed! Error code: {run.last_error.code}")
+            logger.error(f"Error message: {run.last_error.message}")
 
-    print(f'run completed {run.status}')
+    logger.info(f'run completed. Status: {run.status}')
     return run
 
 def foundry_gpt5_analysis(system_prompt: str = None, user_prompt: str = None):
-    from openai import AzureOpenAI
+    from openai import  AzureOpenAI # AsyncAzureOpenAI  
 
     endpoint = "https://foundry-subs1.cognitiveservices.azure.com/"
     model_name = "gpt-5"
-    deployment = "gpt-5"
+    deployment = "gpt-5"  
 
     api_version = "2024-12-01-preview"
 
@@ -191,20 +217,22 @@ def foundry_gpt5_analysis(system_prompt: str = None, user_prompt: str = None):
 
     print(response.choices[0].message.content)   
     return response.choices[0].message.content
-   
 
-if __name__ == "__main__":
-    _, args = sys.argv[0], sys.argv[1:]
-    
+async def do_gpt5_analysis():
     system_prompt = "Act as a Senior technology Analyst specializing in News Sentiment on the market. "
-    analyzed_messages = foundry_gpt5_analysis(system_prompt, analyze_headlines(fetch_tech_news('general')))
+    # Await the async fetch
+    raw_news = await fetch_tech_news('general')
 
-    save_as_pdf(analyzed_messages, f"./Outputs/Headline_Reports_{time.strftime('%Y-%m-%d_%H-%M-%S')}.pdf")
-    print("First run ended", ' ** ' * 30)
+    formatted_prompt = analyze_headlines(raw_news)
+    analyzed_messages = foundry_gpt5_analysis(
+        system_prompt, 
+        formatted_prompt
+        )
+    print("GPT 5 Run ended", ' ** ' * 30)   
+    return analyzed_messages
 
-    ### using agent do thread analysis. 
-    responses = run_agent_analysis()
 
+def parse_and_save_pdf(analyzed_messages, responses):
     agent_responses = []
     # we will iterate them and output only text contents.
     for data_point in responses:
@@ -212,7 +240,20 @@ if __name__ == "__main__":
         if isinstance(last_message_content, MessageTextContent) and MessageRole.AGENT == data_point.role:
             print(f"{data_point.role}: {last_message_content.text.value}")
             agent_responses.append(last_message_content.text.value)
-            
-    #return agent_responses
+
+    # deliberately appending the beginning part of the foundry agent's responses.  
+    sentiment_summary = agent_responses[0][0:2789] if len(agent_responses) > 0 else ''  #  + "\n".join(agent_responses[:2])
+    save_as_pdf(analyzed_messages + "\n" + sentiment_summary, f"./Outputs/Headline_Reports_{time.strftime('%Y-%m-%d_%H-%M-%S')}.pdf")
+
+if __name__ == "__main__":
+    logger = get_logger(__name__)
+    #analyzed_messages = asyncio.run(do_gpt5_analysis())
+    analyzed_messages = ''
+
+    ### using agent do thread analysis. 
+    responses = asyncio.run(run_agent_analysis())
+
+    parse_and_save_pdf(analyzed_messages, responses)
+
  
     

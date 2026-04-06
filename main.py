@@ -2,14 +2,19 @@ import html
 import json
 from typing import Dict, Any, Optional
 from datetime import datetime
-from azure_auth import SCOPES, SWAGGER_CLIENT_ID, oauth2_schema, validate_entra_jwt
-from jose.exceptions import JWTError
-from fastapi import FastAPI, Depends, HTTPException, Path, status
-from uuid import uuid4
-from pydantic import Field, BaseModel
-from finntech_news import analyze_headlines
-from testing.fetch_news_w_aiohttp import fetch_top_headlines
 
+from sqlalchemy import func, select
+from azure_auth import SCOPES, SWAGGER_CLIENT_ID, oauth2_schema, validate_entra_jwt
+from fastapi import FastAPI, Depends, HTTPException, Path, Query, status
+from uuid import uuid4
+from finntech_news import analyze_headlines
+from logging_info import get_logger
+from testing.fetch_news_w_aiohttp import fetch_top_headlines
+from utils.entities import DataPage, ItemCreate, ItemOut, ItemPatch
+from utils.fakes_db import FakeDB
+from utils.secrets import get_secret_azure
+
+logger = get_logger(__name__)
 
 def get_current_user(claims: Dict[str, Any] = Depends(lambda token=Depends(oauth2_schema) : validate_entra_jwt(token))):
     # ' preferred_username, upn oid, scp (delegated scopes)
@@ -34,24 +39,6 @@ app.swagger_ui_init_oauth = {
 
 # demo 
 DB : dict[str, dict] = {}
-
-class ItemCreate(BaseModel):
-    name: str= Field(..., min_length=1, max_length=100)
-    description: Optional[str] = Field(None, max_length=100)
-    price: float = Field(..., ge=0)
-
-class ItemPatch(BaseModel):
-    name: Optional[str] = Field(None, min_length=1, max_length=100)
-    description: Optional[str] = Field(None, max_length=100)
-    price: Optional[float] = Field(None, ge=0)
-
-class ItemOut(BaseModel):
-    id: str
-    name: str
-    description: Optional[str] = None
-    price: float
-    created_utc: str
-    updated_utc: str
 
 def now_utc() -> str:
     return datetime.utcnow().isoformat() + "Z"
@@ -118,44 +105,45 @@ async def me(user = Depends(get_current_user)):
 
 @app.get('/secret')
 def get_secret():
-    MY_PASS = get_secret("ihs-bronze-secret")
+    MY_PASS = get_secret_azure("ihs-bronze-secret")
     print(f"Your secret value is: {MY_PASS}")
     return 'you got the pass.'
 
+
 @app.get('/tech')
-def get_tech_news():
+async def get_tech_news_route():
     from finntech_news import fetch_tech_news
-    
-    return analyze_headlines(fetch_tech_news('general'))
+    news = await fetch_tech_news('general')
+    return analyze_headlines(news)
 
 @app.get('/agent_analysis')
-def run_agent_analysis():
+async def run_agent_analysis_route():
     from finntech_news import run_agent_analysis
-    raw_headlines = run_agent_analysis()
+    raw_headlines = await run_agent_analysis()
     parsed_data = [json.loads(line) for line in raw_headlines if line.strip()]
     return parsed_data
 
 @app.get('/company/{symbol}')
-def get_company_news(symbol: str):
+async def get_company_news_route(symbol: str):
     from finntech_news import get_company_news
-    raw_news = get_company_news(symbol)
+    logger.info(f'Fetching company news for {symbol} at {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}')
+    raw_news = await get_company_news(symbol)
     parsed_data = [html.unescape(line["summary"]) for line in raw_news if line.get("summary")]
     return parsed_data   # unescape
 
+@app.get("/items_async", response_model=DataPage[ItemOut])
+async def list_items_async(page: int = Query(1, ge=1), 
+                           size: int = Query(10, ge=1, le=100),
+                           db = Depends(FakeDB)):
+    offset = (page - 1 ) * size
+    count_query = select(func.count()).select_from(ItemOut)
+    total_result = await db.execute(count_query)
+    total = total_result.scalar()
 
+    query = select(ItemOut).offset(offset).limit(size)
+    result = await db.execute(query)
+    items = result.scalars().all()
 
-from azure.identity import DefaultAzureCredential
-from azure.keyvault.secrets import SecretClient
-VAULT_URL = 'https://key-vault-2026-test3.vault.azure.net/'
-def get_secret(secret_name):
-    try:
-            credential = DefaultAzureCredential()
-            client = SecretClient(vault_url=VAULT_URL, credential=credential)
+    pages = (total + size - 1) // size
 
-            # 4. Retrieve the secret
-            retrieved_secret = client.get_secret(secret_name)
-            
-            return retrieved_secret.value
-    except Exception as e:
-        print(f"Failed to retrieve secret: {e}")
-        return None
+    return DataPage(items=items, total=total, page=page, size=size, pages=pages)
