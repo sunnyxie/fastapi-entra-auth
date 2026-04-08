@@ -1,4 +1,5 @@
 import asyncio
+import os
 from fpdf import FPDF
 
 def save_as_pdf(text, filename):
@@ -15,3 +16,22 @@ def save_as_pdf(text, filename):
 
 async def save_as_pdf_async(text, filename):
     await asyncio.tothread(save_as_pdf, text, filename)
+
+def open_pdf(file_url):
+    import webbrowser
+
+    if os.name != 'nt':
+        print("This function is configured for Windows only.")
+        return
+    
+    opened = False
+    try:
+        edge_path = "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe %s"
+        webbrowser.get(edge_path).open(file_url)
+        opened = True
+    except Exception as e:
+        print(f"Error opening PDF: {e}")
+
+    if not opened:
+        webbrowser.open(file_url)
+    

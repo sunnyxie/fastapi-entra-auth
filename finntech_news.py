@@ -8,7 +8,7 @@ import finnhub
 from dotenv import load_dotenv
 
 from logging_info import get_logger
-from utils.generate_pdf import save_as_pdf
+from utils.generate_pdf import open_pdf, save_as_pdf
 
 logger = get_logger(__name__)
 
@@ -93,6 +93,7 @@ def analyze_headlines(headlines):
         ' sentiment : ...,\n'    
         "} \n"  
         "finally add a three to four sentences of investing and sentiment summary before the JSON array;\n"
+        "and try to name a sector, include the crypto sector, that might outperform in the next 1 to 2 days (it's not a investment strategy.) . "
         "Headlines: \n" 
         + text_formated 
     )  ##  
@@ -121,7 +122,7 @@ async def run_agent_analysis():
 
         thread = await agent_client.threads.create()    
         # 2. Add a message to that thread
-        await chat_in_thread(agent_client, agent_id, thread.id)
+        await chat_in_thread(agent_client, agent_id, thread.id, model_name="grok-4-1-fast-reasoning")
 
         await agent_client.delete_agent(agent_id=agent_id)
 
@@ -135,18 +136,10 @@ async def run_agent_analysis():
                 #     if isinstance(content, MessageTextContent):
                 messages.append(msg)
         return messages
-        
-        # agent_texts = []
-        # for msg in messages.data:
-        #     if msg.role == MessageRole.AGENT:
-        #         for content in msg.content:
-        #             if isinstance(content, MessageTextContent):
-        #                 agent_texts.append(content.text.value)
-        # return agent_texts
     
 
 # using agent thrading chatting
-async def chat_in_thread(agent_client, agent_id, thread_id):
+async def chat_in_thread(agent_client, agent_id, thread_id, model_name="grok-4-1-fast-reasoning"):
     await agent_client.messages.create(
         thread_id=thread_id,
         role="user",
@@ -168,7 +161,7 @@ async def chat_in_thread(agent_client, agent_id, thread_id):
     run = await agent_client.runs.create(
         thread_id=thread_id,
         agent_id=agent_id, 
-        model="grok-4-1-fast-reasoning",
+        model=model_name,
     )
 
     while run.status != "completed":
@@ -232,18 +225,17 @@ async def do_gpt5_analysis():
     return analyzed_messages
 
 
-def parse_and_save_pdf(analyzed_messages, responses):
+def parse_agent_response(response_raw):
     agent_responses = []
     # we will iterate them and output only text contents.
-    for data_point in responses:
+    for data_point in response_raw:
         last_message_content = data_point.content[-1]
         if isinstance(last_message_content, MessageTextContent) and MessageRole.AGENT == data_point.role:
             print(f"{data_point.role}: {last_message_content.text.value}")
             agent_responses.append(last_message_content.text.value)
 
-    # deliberately appending the beginning part of the foundry agent's responses.  
-    sentiment_summary = agent_responses[0][0:2789] if len(agent_responses) > 0 else ''  #  + "\n".join(agent_responses[:2])
-    save_as_pdf(analyzed_messages + "\n" + sentiment_summary, f"./Outputs/Headline_Reports_{time.strftime('%Y-%m-%d_%H-%M-%S')}.pdf")
+    return agent_responses
+
 
 if __name__ == "__main__":
     logger = get_logger(__name__)
@@ -253,7 +245,19 @@ if __name__ == "__main__":
     ### using agent do thread analysis. 
     responses = asyncio.run(run_agent_analysis())
 
-    parse_and_save_pdf(analyzed_messages, responses)
+    agent_responses = parse_agent_response(responses)
+    sentiment_summary = ''
+    if len(agent_responses) > 0:
+        TRUNCATE_MAX_FROM_AGENT = 2800
+        # deliberately appending the beginning part of the foundry agent's responses.  
+        sentiment_summary = agent_responses[0][0:TRUNCATE_MAX_FROM_AGENT] if len(agent_responses) > 0 else '' 
+
+    file_path = os.path.join("./Outputs", f"Headline_Reports_{time.strftime('%Y-%m-%d_%H-%M-%S')}.pdf")
+    save_as_pdf(analyzed_messages + "\n" + sentiment_summary, file_path)
+    logger.info(f'pdf file saved: {file_path}')
+
+    open_pdf(os.path.abspath(file_path))
+
 
  
     
