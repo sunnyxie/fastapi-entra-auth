@@ -47,7 +47,7 @@ SQLAlchemy
 starlette
 tomli
 typer==0.21.1
-typer-slim==0.21.1
+typer-slim
 typing_extensions
 urllib3
 watchfiles
@@ -65,3 +65,4 @@ azure-ai-agents
 azure-ai-projects 
 azure-ai-inference
 python-dotenv
+fpdf2
