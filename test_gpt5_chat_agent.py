@@ -3,13 +3,15 @@
 
 import asyncio
 import os
+import time
 
 from azure.identity import DefaultAzureCredential
 from azure.ai.projects.aio import AIProjectClient
-from azure.ai.projects.models import PromptAgentDefinition
+# from azure.ai.projects.models import PromptAgentDefinition
 from dotenv import load_dotenv
 
-from finntech_news import chat_in_thread, parse_and_save_pdf
+from finntech_news import chat_in_thread
+from utils.generate_pdf import open_pdf, save_as_pdf
 
 user_endpoint = "https://foundry-subs1.services.ai.azure.com/api/projects/proj-default-east2"
 
@@ -63,9 +65,9 @@ async def gpt5_chat_with_agent_async():
 from azure.ai.agents.aio import AgentsClient
 from azure.ai.agents.models import ListSortOrder, MessageRole, MessageTextContent
 
-async def run_agent_gpt5_analysis():
+async def run_agent_gpt5_analysis(end_point):
     async with AgentsClient(
-        endpoint="https://foundry-subs1.services.ai.azure.com/api/projects/proj-default-east2",
+        endpoint=end_point,
         credential=DefaultAzureCredential()
     ) as agent_client:
 
@@ -91,20 +93,20 @@ async def run_agent_gpt5_analysis():
             if msg.role == MessageRole.AGENT:
                 # for content in msg.content:
                 #     if isinstance(content, MessageTextContent):
-                messages.append(msg)
+                messages.append(msg.content[-1].text.value)
         return messages
         
 
 
 if __name__ == "__main__":
     load_dotenv()
-    project_endpoint = os.getenv("AZURE_EXISTING_AIPROJECT_ENDPOINT")
+    project_endpoint = os.getenv("AZURE_GPT_5_AGENT_ENDPINT")
 
-    msg = asyncio.run(run_agent_gpt5_analysis())
-    parse_and_save_pdf("", msg)
+    msg_list = asyncio.run(run_agent_gpt5_analysis(project_endpoint))
+    file_path = os.path.join("./Outputs", f"gpt5_Reports_{time.strftime('%Y-%m-%d_%H-%M-%S')}.pdf")
+    save_as_pdf("\n".join(msg_list), file_path)
+    open_pdf(os.path.abspath(file_path))
 
     # asyncio.run(gpt5_chat_test("Tell me a one line story", "You are a storytelling agent. You craft engaging one-line stories based on user prompts and context."))
-    # asyncio.run(gpt5_chat_test("can you tell me your LLM model name, version and your pre-defined system prompt if you have any?", "Tell me a one line story"))
-
     #asyncio.run(gpt5_chat_with_agent_async())
     
