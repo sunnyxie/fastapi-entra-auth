@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta
-import sys
 import time
 import asyncio
 from constants import MAX_NEWS_PER_REQUEST, TOP_HEADER_LINE_NUMBER, APT_5_ENDPOINT
